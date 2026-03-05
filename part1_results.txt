@@ -1,0 +1,113 @@
+# Question 1: What Python dependencies does this project use?
+
+Query Category: `Dependencies`
+
+Based on a thorough inspection of the repository (including `mcp-gateway-registry/uv.lock` and import analysis), the project uses the following primary Python dependencies:
+
+1.  **Web Framework & Server**: `fastapi`, `uvicorn`, `starlette`.
+2.  **LLM & RAG Infrastructure**: `litellm`, `sentence-transformers`, `faiss-cpu`, `huggingface-hub`.
+3.  **Data Processing**: `pandas`, `numpy`, `scikit-learn`.
+4.  **Utilities**: `python-dotenv`, `requests`, `httpx`, `boto3` (for AWS/Secrets), `cryptography`.
+5.  **Security & Auth**: `pyjwt`, `pydantic`.
+
+**Citations**:
+- `mcp-gateway-registry/uv.lock`: Lists all pinned versions.
+- `mcp-gateway-registry/auth_server/server.py`: Imports `fastapi`, `pydantic`, `jwt`.
+- `mcp-gateway-registry/servers/mcpgw/server.py`: Imports `numpy`, `faiss`, `sklearn`.
+- `scripts/run_part2.py`: Imports `pandas`, `sentence_transformers`.
+
+================================================================================
+
+# Question 2: What is the main entry point file for the registry service?
+
+Query Category: `Structural`
+
+The main entry point for the registry service is `mcp-gateway-registry/registry/main.py`.
+
+Technical Evidence:
+The `mcp-gateway-registry/registry/main.py` file contains the `FastAPI` app instantiation and the `uvicorn.run("registry.main:app", ...)` invocation in its `if __name__ == "__main__":` block. This confirms that the service is intended to be started from this file. It orchestrates the entire application by importing routers from the `registry/api/` directory.
+
+**Citations**:
+- `mcp-gateway-registry/registry/main.py`: Entry point definition and app coordinator.
+
+================================================================================
+
+# Question 3: What programming languages and file types are used in this repository? (e.g., Python, TypeScript, YAML, JSON, Dockerfile, etc.)
+
+Query Category: `Structural`
+
+The repository is built using a multi-language stack focused on Python and infrastructure automation:
+
+1.  **Python (.py)**: The primary language for the registry, auth server, and custom MCP servers.
+2.  **YAML (.yaml / .yml)**: Used for service configuration (e.g., `build-config.yaml`) and GitHub Actions.
+3.  **JSON (.json)**: Used for metadata and configuration (e.g., `.git/watchman-query.json`).
+4.  **Terraform (.tf)**: Used heavily in the `mcp-gateway-registry/terraform/` directory for AWS ECS deployment.
+5.  **Dockerfile**: Found in the `mcp-gateway-registry/docker/` directory (e.g., `Dockerfile.registry`).
+6.  **Bash Scripts (.sh)**: Used for initialization and deployment (e.g., `init-keycloak.sh`, `setup-documentdb-env.sh`).
+7.  **Markdown (.md)**: Extensively used for project documentation.
+8.  **Lua (.lua)**: Used for metrics handling in the observability layer.
+
+**Citations**:
+- `mcp-gateway-registry/registry/`: Contains Python files.
+- `mcp-gateway-registry/docker/`: Contains Dockerfiles.
+- `mcp-gateway-registry/terraform/`: Contains .tf files.
+- `mcp-gateway-registry/terraform/aws-ecs/docs/observability-architecture.md`: Mentions Lua scripts.
+
+================================================================================
+
+# Question 4: How does the authentication flow work, from token validation to user authorization?
+
+Query Category: `Security/Auth`
+
+The authentication flow is a multi-step process involving an internal Auth Server and Keycloak:
+
+1.  **Token Issuance**: Users authenticate via Keycloak (referenced in `init-keycloak.sh`). Upon success, an OAuth2/OIDC token (JWT) is issued.
+2.  **Request Handling**: Incoming requests pass through an Nginx reverse proxy (`mcp-gateway-registry/docker/nginx_rev_proxy_http_and_https.conf`).
+3.  **Token Validation**: The proxy or the `auth_server/server.py` validates the JWT signature and expiration.
+4.  **User Authorization**: Once the token is validated, the system extracts claims (scopes/roles). The registry service then uses these claims to authorize access to specific API endpoints.
+
+**Citations**:
+- `mcp-gateway-registry/auth_server/server.py`: Handles core authentication logic.
+- `mcp-gateway-registry/docker/nginx_rev_proxy_http_and_https.conf`: Manages proxy-level auth.
+- `mcp-gateway-registry/terraform/aws-ecs/scripts/init-keycloak.sh`: Configures the IDP.
+
+================================================================================
+
+# Question 5: What are all the API endpoints available in the registry service and what scopes do they require?
+
+Query Category: `API/Endpoints`
+
+The registry service exposes several critical endpoints, primarily managed through specialized routers:
+
+**General Service Endpoints**:
+- `GET /health`: Health check.
+- `GET /api/auth/me`: Current user session info.
+
+**Registry & Peer Management (from `registry/api/`):**
+- `POST /api/peers/{peer_id}/sync`: Synchronizes registries between peers. (Requires write scopes).
+- `GET /api/peers/{peer_id}/status`: Checks sync status. (Requires read scopes).
+- `POST /api/peers/{peer_id}/enable`: Enables a peer registry.
+- `GET /api/peers/{peer_id}/shared-resources`: Lists shared MCP tools/resources.
+
+**Citations**:
+- `mcp-gateway-registry/registry/main.py`: Top-level endpoint definitions.
+- `mcp-gateway-registry/registry/api/peer_management_routes.py`: Sync and status endpoints.
+
+================================================================================
+
+# Question 6: How would you add support for a new OAuth provider (e.g., Okta) to the authentication system? What files would need to be modified and what interfaces must be implemented?
+
+Query Category: `Security/Auth`
+
+Adding a new OAuth provider like Okta involves extending the authentication server's provider layer:
+
+1.  **New Provider Implementation**: Create a new class (e.g., `OktaProvider`) in a file similar to `mcp-gateway-registry/auth_server/providers/cognito.py`.
+2.  **Interface Requirement**: Must implement the standard OAuth2 interface, including methods for `get_auth_url`, `exchange_code_for_token`, and `validate_token`.
+3.  **Configuration**: Modify `mcp-gateway-registry/auth_server/server.py` to register the new provider and add Okta credentials to the env configuration (referencing `.env.example`).
+4.  **Frontend Update**: If applicable, update `mcp-gateway-registry/registry/templates/login.html` to include the Okta login option.
+
+**Citations**:
+- `mcp-gateway-registry/auth_server/server.py`: Main auth server coordination.
+- `mcp-gateway-registry/auth_server/providers/`: Directory containing provider implementations.
+
+================================================================================
